@@ -61,7 +61,10 @@ int main(int argc, char** argv)
     serial_port serialPort(ioService);
     serialPort.open("COM3", ec);
 
-    if(ec) return -1;
+    if(ec) {
+        std::cout << "Can not open serial port, error reason: " << ec.message() << std::endl;
+        return -1;
+    }
 
     serialPort.set_option(serial_port::baud_rate(115200)); //波特率15200
     serialPort.set_option(serial_port::flow_control(serial_port::flow_control::none)); //无流控制
