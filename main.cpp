@@ -95,6 +95,8 @@ int main(int argc, char** argv)
 
     write(serialPort, buffer(setAngle(1000,0,0,1000,1000,1000)));
 
+
+
     ioService.run();
 
     return 0;
