@@ -12,3 +12,7 @@ InspireHand::InspireHand() :
         sp(new serialPort) {
 
 }
+
+bool InspireHand::setAngle(int16_t h1, int16_t h2, int16_t h3, int16_t h4, int16_t h5, int16_t h6) {
+    return false;
+}

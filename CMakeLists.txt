@@ -10,3 +10,6 @@ find_package(Boost REQUIRED COMPONENTS system)
 
 add_executable(test main.cpp InspireHand.cpp)
 target_link_libraries(test Boost::system)
+
+add_executable(test2 test2.cpp InspireHand.cpp)
+target_link_libraries(test2 Boost::system)
