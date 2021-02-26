@@ -5,6 +5,10 @@
 #ifndef INSPIREHAND_INSPIREHAND_H
 #define INSPIREHAND_INSPIREHAND_H
 
+#define HEADER1 0xEB  // 帧头1
+#define HEADER2 0x90  // 帧头2
+#define DEFAULT_ID 0x01 //默认灵巧手ID
+
 #include <memory>
 #include <array>
 
@@ -37,12 +41,22 @@ class InspireHand {
     static inline const uint16_t ADDR_ANGLE_SET(uint8_t m) { return 1486 + 2 * m; } //各手指角度设置, RW, 6 short
     static inline const uint16_t ADDR_FORCE_SET(uint8_t m) { return 1498 + 2 * m; } //各手指实际力控阈值, RW, 6 short
     static inline const uint16_t ADDR_SPEED_SET(uint8_t m) { return 1522 + 2 * m; } //各手指速度设置, RW, 6 short, 0-1000,
-    static inline const uint16_t ADDR_POS_ACT(uint8_t m) { return 1534 + 2 * m; } //各驱动器实际位置（小拇指0）,R, 6 short, 0-2000, -1
-    static inline const uint16_t ADDR_ANGLE_ACT(uint8_t m) { return 1546 + 2 * m; } //各手指实际角度（小拇指0）,R, 6 short, 0-1000, -1
-    static inline const uint16_t ADDR_FORCE_ACT(uint8_t m) { return 1582 + 2 * m; } //各手指实际受力（小拇指0）,R, 6 short, 0-1000, -1
-    static inline const uint16_t ADDR_CURRENT(uint8_t m) { return 1594 + 2 * m; } //各驱动器电流（小拇指0）, R, 6 short, 0-1000 mA, -1
+    static inline const uint16_t ADDR_POS_ACT(uint8_t m) {
+        return 1534 + 2 * m;
+    } //各驱动器实际位置（小拇指0）,R, 6 short, 0-2000, -1
+    static inline const uint16_t ADDR_ANGLE_ACT(uint8_t m) {
+        return 1546 + 2 * m;
+    } //各手指实际角度（小拇指0）,R, 6 short, 0-1000, -1
+    static inline const uint16_t ADDR_FORCE_ACT(uint8_t m) {
+        return 1582 + 2 * m;
+    } //各手指实际受力（小拇指0）,R, 6 short, 0-1000, -1
+    static inline const uint16_t ADDR_CURRENT(uint8_t m) {
+        return 1594 + 2 * m;
+    } //各驱动器电流（小拇指0）, R, 6 short, 0-1000 mA, -1
 
-    static inline const uint16_t ADDR_ERROR(uint8_t m) { return 1606 + m; } //各驱动器错误（小拇指0）, R, 6 byte, bit0-4=>堵转/过温/过流/电机/通信
+    static inline const uint16_t ADDR_ERROR(uint8_t m) {
+        return 1606 + m;
+    } //各驱动器错误（小拇指0）, R, 6 byte, bit0-4=>堵转/过温/过流/电机/通信
     static inline const uint16_t ADDR_STATUS(uint8_t m) {
         return 1612 + m;
     } //各驱动器状态（小拇指0）, R, 6 byte, bit0-7=>松开/抓取/位置到/力控到/电流保护/堵转停/故障停
@@ -52,7 +66,9 @@ class InspireHand {
     static const uint16_t ADDR_ACTION_SEQ_CHECKDATA1 = 2000; // 当前动作序列校验码1（0x90）, RW, 1 byte
     static const uint16_t ADDR_ACTION_SEQ_CHECKDATA2 = 2001; // 当前动作序列校验码2（0xEB）, RW, 1 byte
     static const uint16_t ADDR_ACTION_SEQ_STEPNUM = 2002; // 当前动作序列总步骤数, RW, 1 byte
-    static inline const uint16_t ADDR_ACTION_SEQ_STEP(uint8_t m) { return 2016 + 38 * m; } // 当前动作序列第m步(0-7), RW, 8*19short
+    static inline const uint16_t ADDR_ACTION_SEQ_STEP(uint8_t m) {
+        return 2016 + 38 * m;
+    } // 当前动作序列第m步(0-7), RW, 8*19short
     static const uint16_t ADDR_ACTION_SEQ_INDEX = 2320; // 当前动作序列索引号, RW, 1 byte
     static const uint16_t ADDR_ACTION_SEQ_SAVE = 2321; // 保存当前动作序列, RW, 1 byte
     static const uint16_t ADDR_ACTION_SEQ_RUN = 2322; // 运行当前动作序列, RW, 1 byte
@@ -61,18 +77,90 @@ class InspireHand {
         READ = 0x11, WRITE = 0x12
     }; //定义枚举类型表示读/写命令 the enum hack
 
-    template<uint8_t order, int16_t register_adderss, size_t data_lens>
+    enum {
+        REQUEST = 0, RETURN = 1
+    }; //定义枚举类型表示请求/返回帧 the enum hack
+
+    //帧格式：帧头(2) + ID(1) + 整个数据部分长度data_lens + 3(1) + 读/写命令(1) + 寄存器地址(2) + 数据长度(data_lens) + 校验位(1) = data_lens + 8
+//    template<int16_t register_adderss, size_t data_lens, uint8_t type = REQUEST, uint8_t order = READ, uint8_t id = 0x01>
+    template<typename T, size_t data_lens, uint8_t type = REQUEST>
     class frame_base {
+    public:
+        frame_base(int16_t register_address = ADDR_ID, uint8_t order = READ, uint8_t id = DEFAULT_ID) :
+                _frame_header1(type ? HEADER2 : HEADER1), //请求帧帧头 0xEB 0x90
+                _frame_header2(type ? HEADER1 : HEADER2), //返回帧帧头 0x90 0xEB
+                _hand_id(id),
+                _frame_data_lens(data_lens + 3),
+                _order(order),
+                _register_adderss(register_address),
+                _data(std::make_shared<std::vector<uint8_t>>(data_lens / sizeof(T), 0)),
+                _checksum(0x00) {
+
+        }
+
+        template<typename D>
+        uint8_t getBinary(D t, size_t i) { //获取内存中存储数值
+            return ((uint8_t *) &t)[i];
+        }
+
+        void getFrame(std::vector<uint8_t> &buffer) {
+            buffer.clear(); //清除传入的buffer
+            uint8_t checksum = 0;
+            buffer.push_back(_frame_header1);
+            buffer.push_back(_frame_header2);
+            buffer.push_back(_hand_id);
+            checksum += _hand_id;
+            buffer.push_back(_frame_data_lens);
+            checksum += _frame_data_lens;
+            buffer.push_back(_order);
+            checksum += _order;
+            buffer.push_back(getBinary(_register_adderss, 0));
+            checksum += getBinary(_register_adderss, 0);
+            buffer.push_back(getBinary(_register_adderss, 1));
+            checksum += getBinary(_register_adderss, 1);
+
+            for (auto &v : *_data) {
+                for (int i = 0; i < sizeof(T); i++) {
+                    buffer.push_back(getBinary(v, i));
+                    checksum += getBinary(v, i);
+                }
+            }
+
+            buffer.push_back(checksum);
+            if (_checksum != checksum)
+                std::cout << "Checksum has been changed to " << std::hex << (int) checksum << std::endl;
+
+            _checksum = checksum;
+
+        }
+
+    private:
+        uint8_t _frame_header1;
+        uint8_t _frame_header2;
+        uint8_t _hand_id;                            //id
+        uint8_t _frame_data_lens;                    //不同于data_lens, 这个_frame_data_lens = data_lens + 3
+        uint8_t _order;                              //命令
+        uint16_t _register_adderss;                  //寄存器地址
+        std::shared_ptr<std::vector<T>> _data; //指向data区域的指针
+        uint8_t _checksum;                           //校验位
+
+
 
     }; // frame基类
 
-    template<uint8_t order>
-    class frame_id : public frame_base<order, 0x1000, 1> {
+    template<uint8_t type = REQUEST>
+    class frame_id : public frame_base<uint8_t, 1, type> {
+    public:
+        explicit frame_id(int16_t register_address = ADDR_ID, uint8_t order = READ, uint8_t id = DEFAULT_ID) :
+                frame_base<uint8_t, 1, type>(register_address, order, id) {
+
+        }
     }; // ID
 
-    template<uint8_t order>
-    struct frame_baud : public frame_base<order, 0x1001, 1> {
+    template<uint8_t type = REQUEST>
+    class frame_baud : public frame_base<uint8_t, 1, type> {
     }; // 波特率设置
+
 //    struct frame_clear_error : public frame_base {}; // 清楚错误
 //    struct frame_save_to_flash : public frame_base {}; // 保存数据至flash
 //    struct frame_reset_param: public frame_base {}; //恢复出厂设置
@@ -168,13 +256,10 @@ private:
     //获取变量在内存中的存储值
     uint8_t getBinary(T t, int i) { return ((char *) &t)[i]; }
 
-
 private:
-    const std::int8_t HEADER1 = 0xEB;  //帧头1
-    const std::int8_t HEADER2 = 0x90; // 帧头2
 
     std::shared_ptr<SerialPort> _sp; //shared_ptr成员变量，用于操作SerialPort类
-    std::int8_t _id = 0x01;          //灵巧手id
+    std::int8_t _id = DEFAULT_ID;          //灵巧手id
 
 };
 
