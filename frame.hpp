@@ -26,17 +26,28 @@
 #define HEADER_RET_1 0x90
 #define HEADER_RET_2 0xEB
 
-class Protocol {
-public:
 
-    enum class Order {
+//#define pID     2               //id位置指针
+//#define pLens   3               //frame lens位置指针
+//#define pOrder   4               //命令
+//#define pAddrL  5               //寄存器地址低
+//#define pAddrH  6
+//#define pData   7               //指向data区域的指针
+//    uint8_t p_checksum;                          //校验位,就是最后一位 data_lens + 7
+
+
+//因时机械手协议的寄存器地址 2 byte
+struct Register {
+public:
+    enum {
         READ = 0x11, WRITE = 0x12
     }; //定义枚举类型表示读/写命令 the enum hack
 
-    enum class Type {
+    enum {
         REQUEST = 0, RETURN = 1, NONE = 2
     }; //定义枚举类型表示请求/返回帧 the enum hack
 
+    /*****寄存器地址******/
     static const uint16_t ADDR_ID = 1000; //灵巧手ID, RW, 1 byte
     static const uint16_t ADDR_BUAD = 1001; //波特率设置, RW, 1 byte
     static const uint16_t ADDR_CLEAR_ERROR = 1004; //清除错误, RW, 1 byte
@@ -92,87 +103,183 @@ public:
     static const uint16_t ADDR_ACTION_SEQ_INDEX = 2320; // 当前动作序列索引号, RW, 1 byte
     static const uint16_t ADDR_ACTION_SEQ_SAVE = 2321; // 保存当前动作序列, RW, 1 byte
     static const uint16_t ADDR_ACTION_SEQ_RUN = 2322; // 运行当前动作序列, RW, 1 byte
+
 };
 
 
 // 帧格式：帧头(2) + ID(1) + 整个数据部分长度data_lens + 3(1) +
 //        读/写命令(1) + 寄存器地址(2) + 数据长度(data_lens) + 校验位(1) = data_lens + 8
-class frame_base {
+
+// 写入寄存器协议类
+template<typename Tx, size_t num, uint16_t register_address>
+struct ProtocolWrite {
 public:
-    typedef Protocol::Order OD;
-    typedef Protocol::Type  TP;
-
-    frame_base(uint8_t *buffer, size_t n) : _buffer(buffer) {
-
+    explicit ProtocolWrite(uint8_t id = 0x01) : _id(id) {
     }
 
-    // 获取帧头
-    // Example:
-    //    auto header1 = getHeader(0);
-    //    auto header2 = getHeader(1);
-    inline uint8_t getHeader(uint8_t i) { return i < 2 ? _buffer[i] : 0x00; }
-    // 获取ID
-    inline uint8_t getHandID() { return _buffer[p_hand_id]; }
-    //获取帧数据长度
-    inline size_t getFrameDataLens() { return _buffer[p_frame_data_lens]; }
-    inline size_t getFrameLens() { return _buffer[p_frame_data_lens] + 5; }
-    inline size_t getDataLens() { return _buffer[p_frame_data_lens] - 3; }
-    //获取寄存器地址
-    inline uint16_t getRegisterAddress() { return *((uint16_t*)(&_buffer[p_register_adderss])); }
-
-    inline void setHeader(uint8_t h1, uint8_t h2) { _buffer[0] = h1; _buffer[1] = h2; }
-    inline void setHandID(uint8_t ID) { _buffer[p_hand_id] = ID; }
-    inline void setData(uint8_t* pData, size_t n) {
-        memcpy(&_buffer[p_data], pData, n);
-        _buffer[p_frame_data_lens] = static_cast<uint8_t>(n) + 3;
-    }
-
-    bool isFrameValid(uint8_t* pFrame) {
-        if((pFrame[0] == HEADER_REQ_1) && (pFrame[1] == HEADER_REQ_2)) { // REQUEST帧
-            type = TP::REQUEST;
-            return true;
-        }
-        else if((pFrame[0] == HEADER_RET_1) && (pFrame[1] == HEADER_RET_2)) { // RETURN帧
-            type = TP::RETURN;
-            return true;
-        }
-        else {
-            std::cout << "The frame header is not valid" << std::endl;
-            type = TP::NONE;
+    /// 得到写寄存器请求帧
+    /// \param buffer 需要填充的数据帧
+    /// \param data 需要写入寄存器的数据，其类型应和模板类型Tx对应
+    /// \return 返回成功或失败
+    bool getRequestBuffer(std::vector<uint8_t> &buffer, std::vector<Tx> &data) {
+        if (data.size() != num) {
+            std::cout << "ERROR::ProtocolWrite::getRequestBuffer::Data size is not available" << std::endl;
             return false;
         }
+
+        size_t data_lens = sizeof(Tx) * num;
+        buffer.resize(data_lens + 8);
+        generateBuffer(&buffer[0], &data[0], data_lens);
+        return true;
+    }
+
+    /// 解析写寄存器返回帧
+    /// \param buffer 需要解析的数据帧，应为串口返回的数据帧
+    /// \return 返回是否解析成功
+    bool parseReturnBuffer(std::vector<uint8_t> &buffer) {
+
+    }
+
+
+private:
+    template<typename D>
+    inline uint8_t getBinary(D t, size_t i) { //获取内存中存储数值
+        return ((uint8_t *) &t)[i];
+    }
+
+    inline uint8_t getChecksum(uint8_t *src, size_t n) {
+        uint8_t checksum = 0;
+        for (int i = 2; i < n; i++) {
+            checksum += src[i];
+        }
+        return checksum;
+    }
+
+    void generateBuffer(uint8_t *dest, uint8_t *pData, size_t lens) {
+        dest[0] = HEADER_REQ_1;
+        dest[1] = HEADER_REQ_2;
+        dest[2] = _id;
+        dest[3] = lens + 3;
+        dest[4] = Register::WRITE;
+        dest[5] = getBinary(register_address, 0);
+        dest[6] = getBinary(register_address, 1);
+        memcpy(&dest[7], pData, lens);
+        dest[lens + 7] = getChecksum(dest, lens + 7);
+    }
+
+private:
+    uint8_t _id;
+//    std::vector<T> _data;                           //存储data
+};
+
+
+// 读取寄存器协议类
+template<typename Rx, size_t num, uint16_t register_address>
+struct ProtocolRead {
+public:
+    explicit ProtocolRead(uint8_t id = 0x01) : _id(id) {
+    }
+
+    //
+    /// 得到读寄存器请求帧
+    /// \param buffer 需要填充的数据帧，读取协议只需要发送需要读取的寄存器中数据长度byte
+    /// \return 返回成功或失败
+    static bool getRequestBuffer(std::vector<uint8_t> &buffer) {
+
+    }
+
+    /// 解析写寄存器返回帧
+    /// \param buffer 需要解析的数据帧，应为串口返回的数据帧
+    /// \param data 解析出的返回数据
+    /// \return 返回是否解析成功
+    bool parseReturnBuffer(std::vector<uint8_t> &buffer, std::vector<Rx>& data) {
+
     }
 
 private:
     template<typename D>
-    uint8_t getBinary(D t, size_t i) { //获取内存中存储数值
+    inline uint8_t getBinary(D t, size_t i) { //获取内存中存储数值
         return ((uint8_t *) &t)[i];
     }
 
+    inline uint8_t getChecksum(uint8_t *src, size_t n) {
+        uint8_t checksum = 0;
+        for (int i = 2; i < n; i++) {
+            checksum += src[i];
+        }
+        return checksum;
+    }
+
+    void generateBuffer(uint8_t *dest, uint8_t *pData, size_t lens) {
+        dest[0] = HEADER_REQ_1;
+        dest[1] = HEADER_REQ_2;
+        dest[2] = _id;
+        dest[3] = lens + 3;
+        dest[4] = Register::WRITE;
+        dest[5] = getBinary(register_address, 0);
+        dest[6] = getBinary(register_address, 1);
+        memcpy(&dest[7], pData, lens);
+        dest[lens + 7] = getChecksum(dest, lens + 7);
+    }
+
 private:
-    TP type = TP::NONE;                             //数据帧类型是请求/返回？
-    bool isValid = false;
-//    std::vector<uint8_t> _buffer;                //buffer用于存储frame
-    uint8_t *_buffer = nullptr;                    //储存传入的buffer指针
-
-//    const uint8_t p_header1 = 0;
-//    const uint8_t p_header2 = 1;
-    const uint8_t p_hand_id = 2;                       //id
-    const uint8_t p_frame_data_lens = 3;               //不同于data_lens, 这个_frame_data_lens = data_lens + 3
-    const uint8_t p_order = 4;                         //命令
-    const uint8_t p_register_adderss = 5;            //寄存器地址低
-//    const uint8_t p_register_address_2 = 6;
-    const uint8_t p_data = 7;                          //指向data区域的指针
-//    uint8_t p_checksum;                          //校验位,就是最后一位 data_lens + 7
-
-}; // frame基类
+    uint8_t _id;
+};
 
 
+//class Protocol {
+//public:
+//    explicit Protocol(uint8_t id = 0x01) : _id(id) {
+//    }
+//
+//    //// 获取帧头
+//// Example:
+////    auto header1 = getHeader(0);
+////    auto header2 = getHeader(1);
+//inline uint8_t getHeader(uint8_t i) { return i < 2 ? _buffer[i] : 0x00; }
+//// 获取ID
+//inline uint8_t getHandID() { return _buffer[p_hand_id]; }
+////获取帧数据长度
+//inline size_t getFrameDataLens() { return _buffer[p_frame_data_lens]; }
+//inline size_t getFrameLens() { return _buffer[p_frame_data_lens] + 5; }
+//inline size_t getDataLens() { return _buffer[p_frame_data_lens] - 3; }
+////获取寄存器地址
+//inline uint16_t getRegisterAddress() { return *((uint16_t*)(&_buffer[p_register_adderss])); }
+//
+//inline void setHeader(uint8_t h1, uint8_t h2) { _buffer[0] = h1; _buffer[1] = h2; }
+//inline void setHandID(uint8_t ID) { _buffer[p_hand_id] = ID; }
+//inline void setData(uint8_t* pData, size_t n) {
+//memcpy(&_buffer[p_data], pData, n);
+//_buffer[p_frame_data_lens] = static_cast<uint8_t>(n) + 3;
+//}
+//
+//bool isFrameValid(uint8_t* pFrame) {
+//    if((pFrame[0] == HEADER_REQ_1) && (pFrame[1] == HEADER_REQ_2)) { // REQUEST帧
+//        type = TP::REQUEST;
+//        return true;
+//    }
+//    else if((pFrame[0] == HEADER_RET_1) && (pFrame[1] == HEADER_RET_2)) { // RETURN帧
+//        type = TP::RETURN;
+//        return true;
+//    }
+//    else {
+//        std::cout << "The frame header is not valid" << std::endl;
+//        type = TP::NONE;
+//        return false;
+//    }
+//}
+//
+//
+//private:
+//    uint8_t _id;
+//};
 
-//template<typename T, uint8_t type = Protocol::REQUEST>
+
+
+//template<typename T, uint8_t type = Register::REQUEST>
 //class frame_id : public frame_base<uint8_t, 1, type> {}; // ID
 
-//template<uint8_t type = Protocol::REQUEST>
+//template<uint8_t type = Register::REQUEST>
 //class frame_baud : public frame_base<uint8_t, 1, type> {
 //}; // 波特率设置
 

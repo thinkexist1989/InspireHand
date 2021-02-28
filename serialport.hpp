@@ -101,8 +101,20 @@ public:
         return true;
     }
 
-    size_t write(std::vector<uint8_t>& buf) {
-        return boost::asio::write(_serialPort, boost::asio::buffer(buf));
+    inline size_t write(std::vector<uint8_t>& buf) {
+        return _serialPort.write_some(boost::asio::buffer(buf), _errorCode);
+    }
+
+    inline size_t write(uint8_t *buf, size_t n) {
+        return _serialPort.write_some(boost::asio::buffer(buf, n), _errorCode);
+    }
+
+    inline size_t read(std::vector<uint8_t>& buf, size_t n) {
+        return _serialPort.read_some(boost::asio::buffer(buf, n), _errorCode);
+    }
+
+    inline size_t read(uint8_t *buf, size_t n) {
+        return _serialPort.read_some(boost::asio::buffer(buf, n), _errorCode);
     }
 
 

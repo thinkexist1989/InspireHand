@@ -64,39 +64,7 @@ public:
         buffer.push_back(0xEB);
         buffer.push_back(0x90); //帧头
 
-//        buffer.push_back(_id); //ID
-//        checksum += _id;
-//        buffer.push_back(dataLens); //长度
-//        checksum += dataLens;
-//        buffer.push_back(0x12); //写寄存器命令
-//        checksum += 0x12;
-//        buffer.push_back(0xCE);
-//        buffer.push_back(0x05);
-//        checksum += 0xCE + 0x05;
-//        buffer.push_back(getBinary(f1, 0));
-//        buffer.push_back(getBinary(f1, 1));
-//        checksum += getBinary(f1, 0) + getBinary(f1, 1);
-////    std::cout << std::hex << (int)getBinary(h1, 0) << (int)getBinary(h1, 1) << std::endl;
-//        buffer.push_back(getBinary(f2, 0));
-//        buffer.push_back(getBinary(f2, 1));
-//        checksum += getBinary(f2, 0) + getBinary(f2, 1);;
-//        buffer.push_back(getBinary(f3, 0));
-//        buffer.push_back(getBinary(f3, 1));
-//        checksum += getBinary(f3, 0) + getBinary(f3, 1);;
-//        buffer.push_back(getBinary(f4, 0));
-//        buffer.push_back(getBinary(f4, 1));
-//        checksum += getBinary(f4, 0) + getBinary(f4, 1);;
-//        buffer.push_back(getBinary(f5, 0));
-//        buffer.push_back(getBinary(f5, 1));
-//        checksum += getBinary(f5, 0) + getBinary(f5, 1);;
-//        buffer.push_back(getBinary(f6, 0));
-//        buffer.push_back(getBinary(f6, 1));
-//        checksum += getBinary(f6, 0) + getBinary(f6, 1);;
-//        buffer.push_back(checksum);
-//
-//        std::cout << std::hex << (int) checksum << std::endl;
-
-        send_buffer(buffer);
+        send(buffer);
 
         return true;
     }
@@ -140,7 +108,7 @@ public:
 
         std::cout << std::hex << (int) checksum << std::endl;
 
-        send_buffer(buffer);
+        send(buffer);
 
 //        return  buffer;
         return true;
@@ -182,11 +150,22 @@ private:
     std::shared_ptr<serialport> _sp; //shared_ptr成员变量，用于操作SerialPort类
     std::int8_t _id = DEFAULT_ID;          //灵巧手id
 
-    void send_buffer(std::vector<uint8_t>& buf) {
-        size_t n = _sp->write(buf);
-        if(n != buf.size()) {
-            std::cout << "ERROR::InspireHand::send_buffer::Do not send complete data!" << std::endl;
+    size_t send(std::vector<uint8_t>& buf) { //发送指定字节的数据
+        size_t ret = _sp->write(buf);
+        if(ret != buf.size()) {
+            std::cout << "ERROR::InspireHand::send::Do not send complete data!" << std::endl;
         }
+
+        return ret;
+    }
+
+    size_t receive(std::vector<uint8_t>& buf, size_t n) { // 接收指定字节的数据
+        size_t ret = _sp->read(buf, n);
+        if(ret != n) {
+            std::cout << "ERROR::InspireHand::receive::Do not receive complete data!" << std::endl;
+        }
+
+        return ret;
     }
 };
 
