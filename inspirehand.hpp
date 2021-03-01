@@ -30,6 +30,10 @@
 #include "serialport.hpp"
 #include "frame.hpp"
 
+#include <boost/assign.hpp>
+
+using namespace boost::assign;
+
 class InspireHand {
 
 public:
@@ -46,72 +50,62 @@ public:
     } //构造函数
 
 public:
-    inline void setPortName(const std::string &portName = "COM3") { _sp->setPortName(portName); }                //设置串口名
-    inline void setBaudRate(unsigned int rate = 115200) { _sp->setBaudRate(rate); }   //设置串口波特率
-    inline void setFlowControl(serialport::flow_control_type fc = serialport::flow_control::none) { _sp->setFlowControl(fc); } //设置流控制
-    inline void setStopBits(serialport::stop_bits_type stopBits = serialport::stop_bits::one) { _sp->setStopBits(stopBits); }             //设置停止位
-    inline void setParity(serialport::parity_type parityBit = serialport::parity::none) { _sp->setParity(parityBit); }                //设置奇偶校验位
-    inline void setDataBits(unsigned int dataBits = 8) { _sp->setDataBits(dataBits); } //设置数据位
+    inline void setPortName(const std::string &portName = "COM3") { _sp->setPortName(portName); }                               //设置串口名
+    inline void setBaudRate(unsigned int rate = 115200) { _sp->setBaudRate(rate); }                                             //设置串口波特率
+    inline void setFlowControl(serialport::flow_control_type fc = serialport::flow_control::none) { _sp->setFlowControl(fc); }  //设置流控制
+    inline void setStopBits(serialport::stop_bits_type stopBits = serialport::stop_bits::one) { _sp->setStopBits(stopBits); }   //设置停止位
+    inline void setParity(serialport::parity_type parityBit = serialport::parity::none) { _sp->setParity(parityBit); }          //设置奇偶校验位
+    inline void setDataBits(unsigned int dataBits = 8) { _sp->setDataBits(dataBits); }                                          //设置数据位
+
+    bool getAngle(std::vector<uint16_t> &fingers) {
+//        fingers.clear();
+        ProtoGetAngle p(DEFAULT_ID);
+        std::vector<uint8_t> sendBuf;
+        p.getRequestBuffer(sendBuf);
+        if(!send(sendBuf)) {
+            return false;
+        }
+
+        std::vector<uint8_t> recvBuf(12 + 8);
+        receive(recvBuf, recvBuf.size());
+
+        if(!p.parseReturnBuffer(recvBuf, fingers)) {
+            std::cout << "ERROR::InspireHand::GetAngle::Return false" << std::endl;
+            return false;
+        }
+
+        return true;
+    }
 
 
+    bool setAngle(std::vector<uint16_t> &fingers) {
+        if (fingers.size() != 6) {
+            std::cout << "ERROR::InspireHand::setAngle::Data incomplete" << std::endl;
+            return false;
+        }
+        ProtoSetAngle p(DEFAULT_ID);
+        std::vector<uint8_t> sendBuf;
+        p.getRequestBuffer(sendBuf, fingers);
+        if(!send(sendBuf)) {
+            return false;
+        }
 
+        std::vector<uint8_t> recvBuf(1 + 8);
+        receive(recvBuf, recvBuf.size());
 
-
-    bool setAngle(std::vector<std::int16_t> &fingers) {
-        uint8_t checksum = 0;
-        uint8_t dataLens = 2 * 6 + 3;
-        std::vector<uint8_t> buffer;
-        buffer.push_back(0xEB);
-        buffer.push_back(0x90); //帧头
-
-        send(buffer);
+        if(!p.parseReturnBuffer(recvBuf)) {
+            std::cout << "ERROR::InspireHand::setAngle::Return false" << std::endl;
+            return false;
+        }
 
         return true;
     }
 
     bool setAngle(int16_t f1, int16_t f2, int16_t f3, int16_t f4, int16_t f5, int16_t f6) {
-        uint8_t checksum = 0;
-        uint8_t dataLens = 2 * 6 + 3;
-        std::vector<uint8_t> buffer;
-        buffer.push_back(0xEB);
-        buffer.push_back(0x90); //帧头
+        std::vector<uint16_t> fingers;
+        fingers += f1, f2, f3, f4, f5, f6;
 
-        buffer.push_back(_id); //ID
-        checksum += _id;
-        buffer.push_back(dataLens); //长度
-        checksum += dataLens;
-        buffer.push_back(0x12); //写寄存器命令
-        checksum += 0x12;
-        buffer.push_back(0xCE);
-        buffer.push_back(0x05);
-        checksum += 0xCE + 0x05;
-        buffer.push_back(getBinary(f1, 0));
-        buffer.push_back(getBinary(f1, 1));
-        checksum += getBinary(f1, 0) + getBinary(f1, 1);
-//    std::cout << std::hex << (int)getBinary(h1, 0) << (int)getBinary(h1, 1) << std::endl;
-        buffer.push_back(getBinary(f2, 0));
-        buffer.push_back(getBinary(f2, 1));
-        checksum += getBinary(f2, 0) + getBinary(f2, 1);;
-        buffer.push_back(getBinary(f3, 0));
-        buffer.push_back(getBinary(f3, 1));
-        checksum += getBinary(f3, 0) + getBinary(f3, 1);;
-        buffer.push_back(getBinary(f4, 0));
-        buffer.push_back(getBinary(f4, 1));
-        checksum += getBinary(f4, 0) + getBinary(f4, 1);;
-        buffer.push_back(getBinary(f5, 0));
-        buffer.push_back(getBinary(f5, 1));
-        checksum += getBinary(f5, 0) + getBinary(f5, 1);;
-        buffer.push_back(getBinary(f6, 0));
-        buffer.push_back(getBinary(f6, 1));
-        checksum += getBinary(f6, 0) + getBinary(f6, 1);;
-        buffer.push_back(checksum);
-
-        std::cout << std::hex << (int) checksum << std::endl;
-
-        send(buffer);
-
-//        return  buffer;
-        return true;
+        return setAngle(fingers);
     }
 
     template<int8_t n1>
@@ -119,7 +113,7 @@ public:
         std::vector<int16_t> angles = {6 , -1};
         angles[n1] = f1;
         std::cout << "angles[" << static_cast<int>(n1) << "] = " << f1 << std::endl;
-        return false;
+        return setAngle(angles);
     }
 
     template<int8_t n1, int8_t n2>
@@ -129,7 +123,7 @@ public:
         angles[n2] = f2;
         std::cout << "angles[" << static_cast<int>(n1) << "] = " << f1 << std::endl;
         std::cout << "angles[" << static_cast<int>(n2) << "] = " << f2 << std::endl;
-        return false;
+        return setAngle(angles);
     }
 
     template<int8_t n1, int8_t n2, int8_t n3>
@@ -142,30 +136,32 @@ public:
     bool setAngle(int16_t f1, int16_t f2, int16_t f3, int16_t f4, int16_t f5);
 
 private:
-    template<typename T>
-    //获取变量在内存中的存储值
-    uint8_t getBinary(T t, int i) { return ((char *) &t)[i]; }
+//    template<typename T>
+//    //获取变量在内存中的存储值
+//    uint8_t getBinary(T t, int i) { return ((char *) &t)[i]; }
 
 private:
     std::shared_ptr<serialport> _sp; //shared_ptr成员变量，用于操作SerialPort类
     std::int8_t _id = DEFAULT_ID;          //灵巧手id
 
-    size_t send(std::vector<uint8_t>& buf) { //发送指定字节的数据
+    bool send(std::vector<uint8_t>& buf) { //发送指定字节的数据
         size_t ret = _sp->write(buf);
         if(ret != buf.size()) {
             std::cout << "ERROR::InspireHand::send::Do not send complete data!" << std::endl;
+            return false;
         }
 
-        return ret;
+        return true;
     }
 
-    size_t receive(std::vector<uint8_t>& buf, size_t n) { // 接收指定字节的数据
+    bool receive(std::vector<uint8_t>& buf, size_t n) { // 接收指定字节的数据
         size_t ret = _sp->read(buf, n);
         if(ret != n) {
             std::cout << "ERROR::InspireHand::receive::Do not receive complete data!" << std::endl;
+            return false;
         }
 
-        return ret;
+        return true;
     }
 };
 
