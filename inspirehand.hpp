@@ -31,6 +31,7 @@
 #include "frame.hpp"
 
 #include <boost/assign.hpp>
+#include <boost/progress.hpp>
 
 using namespace boost::assign;
 
@@ -57,9 +58,13 @@ public:
     inline void setParity(serialport::parity_type parityBit = serialport::parity::none) { _sp->setParity(parityBit); }          //设置奇偶校验位
     inline void setDataBits(unsigned int dataBits = 8) { _sp->setDataBits(dataBits); }                                          //设置数据位
 
+    /// 获取手指角度, 0-1000，-1不改动
+    /// \param fingers 返回手指角度的std::vector<uint16_t>引用
+    /// \return 成功标志位
     bool getAngle(std::vector<uint16_t> &fingers) {
 //        fingers.clear();
-        ProtoGetAngle p(DEFAULT_ID);
+        boost::progress_timer t;
+        ProtoGetAngle p(_id);
         std::vector<uint8_t> sendBuf;
         p.getRequestBuffer(sendBuf);
         if(!send(sendBuf)) {
@@ -77,13 +82,16 @@ public:
         return true;
     }
 
-
+    /// 设置手指角度 0-1000, -1保持不动
+    /// \param fingers
+    /// \return
     bool setAngle(std::vector<uint16_t> &fingers) {
+        boost::progress_timer t; //开始计时，析构自动输出时间
         if (fingers.size() != 6) {
             std::cout << "ERROR::InspireHand::setAngle::Data incomplete" << std::endl;
             return false;
         }
-        ProtoSetAngle p(DEFAULT_ID);
+        ProtoSetAngle p(_id);
         std::vector<uint8_t> sendBuf;
         p.getRequestBuffer(sendBuf, fingers);
         if(!send(sendBuf)) {
@@ -135,14 +143,65 @@ public:
     template<int8_t n1, int8_t n2, int8_t n3, int8_t n4, int8_t n5>
     bool setAngle(int16_t f1, int16_t f2, int16_t f3, int16_t f4, int16_t f5);
 
+    /// 设置灵巧手ID
+    /// \param id
+    /// \return
+    bool setHandID(uint8_t id) {
+        boost::progress_timer t; //开始计时，析构自动输出时间
+
+        ProtoSetID p(_id);
+        std::vector<uint8_t> sendBuf;
+        std::vector<uint8_t> idv;
+        idv += id;
+        p.getRequestBuffer(sendBuf, idv);
+        if(!send(sendBuf)) {
+            return false;
+        }
+
+        std::vector<uint8_t> recvBuf(1 + 8);
+        receive(recvBuf, recvBuf.size());
+
+        if(!p.parseReturnBuffer(recvBuf)) {
+            std::cout << "ERROR::InspireHand::setHandID::Return false" << std::endl;
+            return false;
+        }
+        else {
+            std::cout << "Current Hand ID is: " << id << std::endl;
+            _id = id;
+            return true;
+        }
+
+    }
+
+    bool getHandID(uint8_t& id) {
+        boost::progress_timer t;
+
+        ProtoGetID p(_id);
+        std::vector<uint8_t> sendBuf;
+        p.getRequestBuffer(sendBuf);
+        if(!send(sendBuf)) {
+            return false;
+        }
+
+        std::vector<uint8_t> recvBuf(1 + 8);
+        receive(recvBuf, recvBuf.size());
+
+        std::vector<uint8_t> idv;
+        if(!p.parseReturnBuffer(recvBuf, idv)) {
+            std::cout << "ERROR::InspireHand::getHandID::Return false" << std::endl;
+            return false;
+        }
+        else {
+            std::cout << "Current Hand ID is: " << id << std::endl;
+            id = idv[0];
+            return true;
+        }
+    }
+
 private:
 //    template<typename T>
 //    //获取变量在内存中的存储值
 //    uint8_t getBinary(T t, int i) { return ((char *) &t)[i]; }
-
-private:
-    std::shared_ptr<serialport> _sp; //shared_ptr成员变量，用于操作SerialPort类
-    std::int8_t _id = DEFAULT_ID;          //灵巧手id
 
     bool send(std::vector<uint8_t>& buf) { //发送指定字节的数据
         size_t ret = _sp->write(buf);
@@ -163,6 +222,10 @@ private:
 
         return true;
     }
+
+private:
+    std::shared_ptr<serialport> _sp; //shared_ptr成员变量，用于操作SerialPort类
+    std::int8_t _id = DEFAULT_ID;          //灵巧手id
 };
 
 
