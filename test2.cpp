@@ -24,7 +24,7 @@ int main(int argc, char** argv)
     if(ih.getAngle(fingers)) {
         for(auto& v : fingers) {
             static int i = 0;
-            std::cout << "finger " << i << " is: " << static_cast<int>(v) << std::endl;
+            std::cout << "finger " << i++ << " is: " << static_cast<int>(v) << std::endl;
         }
     }
 
