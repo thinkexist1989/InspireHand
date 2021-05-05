@@ -118,7 +118,7 @@ public:
 
     template<int8_t n1>
     bool setAngle(int16_t f1) {
-        std::vector<int16_t> angles = {6 , -1};
+        std::vector<uint16_t> angles(6 , (uint16_t)-1);
         angles[n1] = f1;
         std::cout << "angles[" << static_cast<int>(n1) << "] = " << f1 << std::endl;
         return setAngle(angles);
@@ -126,7 +126,7 @@ public:
 
     template<int8_t n1, int8_t n2>
     bool setAngle(int16_t f1, int16_t f2) {
-        std::array<int16_t, 6> angles = {-1};
+        std::vector<uint16_t> angles(6,(uint16_t)-1);
         angles[n1] = f1;
         angles[n2] = f2;
         std::cout << "angles[" << static_cast<int>(n1) << "] = " << f1 << std::endl;

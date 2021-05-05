@@ -8,8 +8,8 @@ set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
 find_package(Boost REQUIRED COMPONENTS system)
 
-add_executable(test main.cpp)
-target_link_libraries(test Boost::system)
+add_executable(test1 main.cpp)
+target_link_libraries(test1 Boost::system)
 
 add_executable(test2 test2.cpp)
 target_link_libraries(test2 Boost::system)

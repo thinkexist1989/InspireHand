@@ -3,6 +3,7 @@
 //
 
 #include "inspirehand.hpp"
+#include <thread>
 
 #define HAND_ID 0x01
 
