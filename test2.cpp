@@ -19,7 +19,7 @@ int main(int argc, char **argv)
 
     ih.setAngle(1000, 0, 0, 1000, 1000, 1000);
 
-    //    std::this_thread::sleep_for(std::chrono::seconds(1));
+    std::this_thread::sleep_for(std::chrono::seconds(1));
 
     std::vector<uint16_t> fingers;
     if (ih.getAngle(fingers))

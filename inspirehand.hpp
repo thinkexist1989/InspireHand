@@ -192,8 +192,8 @@ public:
             return false;
         }
         else {
-            std::cout << "Current Hand ID is: " << id << std::endl;
             id = idv[0];
+            std::cout << "Current Hand ID is: " << (int)id << std::endl;
             return true;
         }
     }
